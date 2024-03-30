@@ -1,0 +1,259 @@
+import pandas as pd
+
+# Load the data
+df = pd.read_csv("vira_logs_2023-08-30.csv")
+
+# Convert 'date' column to datetime format
+df['date'] = pd.to_datetime(df['date'], errors='coerce')
+
+# Preprocessing steps
+for index, row in df.iterrows():
+    # Check if the value in the column 'text' is either NaN or not a string
+    if pd.isna(row['text']) or not isinstance(row['text'], str):
+        # Drop the row if the condition is met
+        df.drop(index, inplace=True)
+
+# Reset index after dropping rows
+df.reset_index(drop=True, inplace=True)
+
+# Additional filtering based on various conditions
+df.drop(df[(df.is_concern == False) & (df.dialog_act.str.contains("FEEDBACK"))].index, inplace=True)
+df.drop(df[df.text.str.contains("None of the above")].index, inplace=True)
+df.drop(df[df.text.str.contains("I didn't ask a question")].index, inplace=True)
+df.drop(df[df.text.str.contains("Ninguna de las anteriores")].index, inplace=True)
+df.drop(df[df.text.str.contains("No hice ninguna pregunta")].index, inplace=True)
+df.drop(df[df.is_concern != True].index, inplace=True)
+df.drop(df[df.is_profanity == "TRUE"].index, inplace=True)
+df.drop(df[df.date == "2021-07-28"].index, inplace=True)
+df.drop(df[df.date == "2021-07-29"].index, inplace=True)
+
+df_text = df[['text']]
+docs_unclean = df_text.text.tolist()
+timestamps_unclean = df.date.to_list()
+docs = []
+timestamps = []
+index = 0
+for item in docs_unclean:
+  try:
+    lang = detect(item)
+    language_list = ['en', 'es']
+    if str(item) != 'nan' and type(item) == str and lang in language_list:
+      docs.append(item)
+      timestamps.append(timestamps_unclean[index])
+    index = index + 1
+  except:
+    pass
+# Assuming 'dialog_id' exists and is the identifier for each user's messages
+# Count messages per user and create a mapping
+message_counts = df['dialog_id'].value_counts().to_dict()
+# Map each user's message count back to the original DataFrame
+df['message_count'] = df['dialog_id'].apply(lambda x: message_counts.get(x, 0))
+
+# Keep the original message count for each dialog_id if needed
+df['message_count'] = df['dialog_id'].map(df['dialog_id'].value_counts())
+
+# Filtered DataFrame based on your conditions
+df_filtered = df[['text', 'date', 'dialog_id', 'message_count']]
+
+# Save the filtered DataFrame to a CSV file
+df_filtered.to_csv('filtered_data.csv', index=False)
+
+import pandas as pd
+from bertopic import BERTopic
+from sklearn.feature_extraction.text import CountVectorizer
+
+# Load the preprocessed data from the CSV file
+preprocessed_data = pd.read_csv("preprocessed_data.csv")
+
+# Extract the documents as a list
+docs = preprocessed_data['text'].tolist()
+
+# Initialize the CountVectorizer with English stop words
+vectorizer_model = CountVectorizer(stop_words="english")
+
+# Initialize the BERTopic model with the specified parameters
+topic_model = BERTopic(embedding_model="all-MiniLM-L6-v2",
+                       nr_topics="auto",
+                       language="multilingual",
+                       vectorizer_model=vectorizer_model,
+                       calculate_probabilities=False)
+
+# Fit the BERTopic model to the documents and get the topics and probabilities
+topics, probs = topic_model.fit_transform(docs)
+
+# You may want to save the BERTopic model after fitting for future use
+#topic_model.save("my_bertopic_model")
+# Retrieve the topic information
+topic_info = topic_model.get_topic_info()
+
+topic_info.to_csv("vira_may23_topic_info_mecklenburg.csv", index=False)
+#language detection (skip for now 01/20)
+df_text = df[['text']]
+docs_unclean = df_text.text.tolist()
+timestamps_unclean = df.date.to_list()
+docs = []
+timestamps = []
+index = 0
+for item in docs_unclean:
+  try:
+    lang = detect(item)
+    language_list = ['en', 'es']
+    if str(item) != 'nan' and type(item) == str and lang in language_list:
+      docs.append(item)
+      timestamps.append(timestamps_unclean[index])
+    index = index + 1
+  except:
+    pass
+
+
+# 5-themes
+themes = {
+    "Vaccine Hesitancy and Conspiracy": [
+        'refuse', 'want', 'vaccine', 'safe', 'dangerous', 'unsafe','lie', 'lying', 'truth', 
+        'hoax', 'microchips', 'DNA', 'change', 'worthless', 'bill', 'gates'
+        "vaccines", "vaccinate", "safe", "safety",
+        'trust', 'died', 'dying', 'death', 'report', 'government', 'china', 'russian', 
+        'fda', 'approved', 'approval', 'licensed', 'federally','approve', 'mandated',
+        "fake"
+    ],
+    
+    "Vaccine Efficacy and Immunity": [
+        'immunity', 'long', 'protection', 'protect', 
+        'covid', '19', 'vaccinated',
+        'strains', 'new', 'work', 'omicron', 'variant', 'protect', 
+        'targets', 'omnicron', 'work', 'subvariants', 'effective',
+        "antibodies",
+        "mutations",
+        "mutate",
+        "Sars-Cov-2",
+        "novel",
+        "flu"
+    ],
+            
+    "Vaccine Distribution and Guidelines": [
+         'gotten', 'place', 'people',  
+         'ingredients', 'chemicals', 'tell', 'mrna', 
+         'technology', 'rna', 'inventors', 'human', 'modified', 'invented', 'protein',
+         'best', 'brand', 'type', 'better', 'moderna', 'pfizer', 'abstract', 
+         'prefers', 'comparisons', 'AstraZeneca', 'johnson', 'j&j',
+         'booster', 'shots', 'dose', 'wait', 'received', 'shot',
+        'school', 'kids', 'requirements', 'teen', 'dog', 'medications', 'pets'
+    ],
+    
+    "Covid-related Information": [
+        'mask', 'wear', 'indoors', 'quarantine', 'isolation', 'expose', 
+        'meet', 'groups', 'group', 'crowd', 'party', 'safe', 'when', 'end',
+        'long', 'covid'
+    ],
+    
+    "Vaccine Side Effects and Health Concerns": [
+        'side', 'effects', 'common', 'reported', 'reactions', 
+        'adverse', 'worried', 'long', 'term',
+        'pregnant', 'infertility', 'heart', 'problems', 'attacks', 'blood', 
+        'pressure', 'cardiac', 'myocarditis', 'inflammation', 'cause', 
+        'stroke', 'bell', 'palsy'
+    ],
+    "chatbot-related":[
+    "chatbot", "AI", "IBM", "VIRA"
+    ]
+    
+}
+
+
+from fuzzywuzzy import fuzz
+import pandas as pd
+
+def find_best_theme(message, theme_keywords, similarity_threshold=50):
+    best_match_theme = None
+    max_similarity = -1
+
+    for theme, keywords in theme_keywords.items():
+        for keyword in keywords:
+            similarity = fuzz.token_set_ratio(str(message).lower(), keyword.lower())
+            if similarity > max_similarity:
+                max_similarity = similarity
+                best_match_theme = theme
+
+    if max_similarity >= similarity_threshold:
+        return best_match_theme
+    else:
+        return None
+
+#preprocessed_data = pd.read_csv("preprocessed_data.csv")
+
+# Assign themes to each message using the `find_best_theme` function
+preprocessed_data['theme'] = preprocessed_data['text'].apply(lambda message: find_best_theme(message, themes))
+
+# Save the DataFrame with the new 'theme' column to a new CSV file
+preprocessed_data.to_csv("dataset_with_themes.csv", index=False)
+
+
+df = pd.read_csv("dataset_with_themes.csv")
+
+# Convert the 'date' column to datetime format
+df['date'] = pd.to_datetime(df['date'], errors='coerce')
+
+# Remove rows where no theme is assigned
+df = df.dropna(subset=['theme'])
+
+# Group the data by month and theme, then compute counts
+monthly_counts = df.groupby([pd.Grouper(key='date', freq='M'), 'theme']).size().unstack().fillna(0)
+
+# Save the monthly theme counts to a CSV file
+monthly_counts.to_csv('monthly_theme_counts.csv')
+
+# sentiment analysis using GPT-3.5 API
+import openai
+import pandas as pd
+import time
+from tqdm import tqdm  
+
+client = OpenAI(api_key=API_KEY)
+
+def get_emotion(text):
+    try:
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": f"use one word to describe the emotion of this sentence: '{text}'"}
+            ],
+            max_tokens=5
+        )
+        emotion = response.choices[0].message.content.strip()
+        return emotion
+    except Exception as e:
+        print(f"Error processing text: {text}. Error: {e}")
+        time.sleep(1)
+        return "Error"
+
+emotions = []
+
+# Wrap your loop with tqdm for a progress bar
+for text in tqdm(df['text'].tolist(), desc="Processing Texts"): 
+    emotion = get_emotion(text)
+    emotions.append(emotion)
+    time.sleep(1)
+
+df['emotion'] = emotions
+import pandas as pd
+
+# Load the DataFrame
+df = pd.read_csv('updated_dataset_new_column.csv')
+
+
+love_affection_emotions = ['love', 'affection', 'affectionate', 'fondness', 'adoration', 'neutral']
+
+df['emotion_normalized'] = df['emotion'].str.lower()
+
+mask_to_drop = df['emotion_normalized'].apply(lambda x: any(emotion in x for emotion in love_affection_emotions))
+
+df.loc[mask_to_drop, 'message_count'] -= 1
+
+df_filtered_remove = df[~mask_to_drop]
+
+# Optionally, you can drop the 'emotion_normalized' column if it's no longer needed
+df_filtered_remove.drop(columns=['emotion_normalized'], inplace=True)
+
+
+df_filtered_remove.to_csv('filtered_dataset_remove.csv', index=False)
