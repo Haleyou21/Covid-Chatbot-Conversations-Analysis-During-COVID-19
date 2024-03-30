@@ -17,7 +17,7 @@ We analyzed 45,877 user chat utterances collected between July 2021 and May 2023
 ### Analysis
 
 - **Topic Modeling:** Utilizing BERTopic, an unsupervised NLP technique, we identified key topics within the conversations.
-- **Sentiment Analysis:** A subset of over 3,200 queries was analyzed to gauge public sentiment, employing GPT-3's text-davinci-003 model for English and Spanish inputs.
+- **Sentiment Analysis:** A subset of over 3,200 queries was analyzed to gauge public sentiment, employing GPT-3.5 model for English and Spanish inputs.
 
 ## Results
 
